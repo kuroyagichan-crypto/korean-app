@@ -800,6 +800,34 @@ function speakKorean(text) {
   }
 }
 
+// 複数文を順番に読み上げる（例文用）
+function speakKoreanAll(text) {
+  window.speechSynthesis.cancel();
+  // ／ や改行で区切られた各パートから韓国語を抽出
+  const parts = text.split(/／|\n/);
+  const phrases = parts
+    .map(p => (p.match(/[\uAC00-\uD7A3]+/g) || []).join(" ").trim())
+    .filter(Boolean);
+  if (!phrases.length) return;
+
+  const speak = () => {
+    const voice = getKoreanVoice();
+    phrases.forEach(phrase => {
+      const u = new SpeechSynthesisUtterance(phrase);
+      if (voice) { u.voice = voice; u.lang = voice.lang; }
+      else { u.lang = "ko-KR"; }
+      u.rate = 0.85; u.pitch = 1.0;
+      window.speechSynthesis.speak(u);
+    });
+  };
+
+  if (window.speechSynthesis.getVoices().length > 0) {
+    speak();
+  } else {
+    window.speechSynthesis.onvoiceschanged = () => { speak(); window.speechSynthesis.onvoiceschanged = null; };
+  }
+}
+
 // 韓国語音声が利用可能か確認するフック
 function useKoreanVoiceCheck() {
   const [hasKoreanVoice, setHasKoreanVoice] = useState(null);
@@ -910,17 +938,33 @@ function ProgressBar({ value, color="#f97316", height=8 }) {
 
 function VocabCard({ item }) {
   const [f, setF] = useState(false);
+
+  function handleTap() {
+    setF(v => !v);
+    speakKorean(item.kr);
+  }
+
   return (
-    <div onClick={() => setF(v => !v)} style={{
+    <div onClick={handleTap} style={{
       background: f ? "#f97316" : "#1e293b", borderRadius:14, padding:"14px 18px",
       cursor:"pointer", transition:"all .25s", border:"1px solid rgba(249,115,22,.2)", marginBottom:8
     }}>
       {!f
-        ? <><div style={{fontSize:20,fontWeight:700,color:"#f1f5f9",fontFamily:"'Noto Sans KR',sans-serif"}}>{item.kr}</div>
-             <div style={{fontSize:12,color:"#94a3b8",marginTop:3}}>{item.rom}</div>
-             <div style={{fontSize:11,color:"#475569",marginTop:5}}>タップして意味を見る</div></>
-        : <><div style={{fontSize:17,fontWeight:700,color:"#fff"}}>{item.ja}</div>
-             <div style={{fontSize:13,color:"rgba(255,255,255,.8)",marginTop:5,fontFamily:"'Noto Sans KR',sans-serif"}}>{item.kr}　{item.rom}</div></>}
+        ? <>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+              <div style={{fontSize:20,fontWeight:700,color:"#f1f5f9",fontFamily:"'Noto Sans KR',sans-serif"}}>{item.kr}</div>
+              <div style={{fontSize:16,color:"#475569"}}>🔊</div>
+            </div>
+            <div style={{fontSize:12,color:"#94a3b8",marginTop:3}}>{item.rom}</div>
+            <div style={{fontSize:11,color:"#475569",marginTop:5}}>タップして意味を見る（音声も再生）</div>
+          </>
+        : <>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+              <div style={{fontSize:17,fontWeight:700,color:"#fff"}}>{item.ja}</div>
+              <div style={{fontSize:16,color:"rgba(255,255,255,.6)"}}>🔊</div>
+            </div>
+            <div style={{fontSize:13,color:"rgba(255,255,255,.8)",marginTop:5,fontFamily:"'Noto Sans KR',sans-serif"}}>{item.kr}　{item.rom}</div>
+          </>}
     </div>
   );
 }
@@ -955,7 +999,14 @@ function MorningLesson({ lesson, onComplete }) {
           <div style={{fontSize:20,fontWeight:800,color:"#f97316",marginBottom:6}}>{morning.grammar.point}</div>
           <div style={{fontSize:14,color:"#f1f5f9",marginBottom:14}}>{morning.grammar.ja}</div>
           <div style={{background:"#0f172a",borderRadius:12,padding:"12px 16px"}}>
-            <div style={{fontSize:11,color:"#64748b",marginBottom:3}}>例文</div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+              <div style={{fontSize:11,color:"#64748b"}}>例文</div>
+              <button onClick={()=>speakKoreanAll(morning.grammar.example)}
+                style={{background:"rgba(249,115,22,.15)",border:"1px solid rgba(249,115,22,.3)",borderRadius:8,
+                  color:"#f97316",padding:"4px 10px",cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>
+                🔊 聞く
+              </button>
+            </div>
             <div style={{fontSize:14,color:"#f1f5f9",fontFamily:"'Noto Sans KR',sans-serif",lineHeight:1.6}}>{morning.grammar.example}</div>
           </div>
         </div>
@@ -1139,41 +1190,130 @@ function EveningPractice({ lesson, onComplete }) {
   );
 }
 
+// 週の詳細・復習画面
+function WeekDetail({ lesson, weekIndex, onBack }) {
+  const isLocked = lesson.week - 1 > weekIndex;
+  const isCurrent = lesson.week - 1 === weekIndex;
+  const [step, setStep] = useState(0);
+
+  if (isLocked) return (
+    <div style={{animation:"fadeIn .4s ease"}}>
+      <div style={{padding:"22px 22px 0"}}>
+        <button onClick={onBack} style={{background:"none",border:"none",color:"#64748b",cursor:"pointer",fontSize:13,marginBottom:10,padding:0,fontFamily:"inherit"}}>← カリキュラムへ</button>
+      </div>
+      <div style={{padding:"40px 22px",textAlign:"center"}}>
+        <div style={{fontSize:56,marginBottom:16}}>🔒</div>
+        <div style={{fontSize:18,fontWeight:800,color:"#f1f5f9",marginBottom:8}}>Week {lesson.week}：{lesson.theme}</div>
+        <div style={{fontSize:14,color:"#64748b",marginBottom:24,lineHeight:1.7}}>
+          この課はまだ学習できません。<br/>
+          Week {weekIndex + 1}（現在の課）を<br/>
+          完了すると解放されます。
+        </div>
+        <div style={{background:"#1e293b",borderRadius:14,padding:"14px 18px",border:"1px solid rgba(255,255,255,.06)"}}>
+          <div style={{fontSize:11,color:"#64748b",marginBottom:4}}>学習予定のフレーズ</div>
+          <div style={{fontSize:18,fontWeight:700,color:"#475569",fontFamily:"'Noto Sans KR',sans-serif"}}>
+            {lesson.morning.phrase.kr}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{animation:"fadeIn .4s ease"}}>
+      <div style={{padding:"22px 22px 0",background:"linear-gradient(180deg,#1e293b 0%,transparent 100%)"}}>
+        <button onClick={onBack} style={{background:"none",border:"none",color:"#64748b",cursor:"pointer",fontSize:13,marginBottom:10,padding:0,fontFamily:"inherit"}}>← カリキュラムへ</button>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+          <div style={{background:PHASE_COLORS[lesson.phase],borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700,color:"#fff"}}>Phase {lesson.phase}</div>
+          {isCurrent && <div style={{background:"#f97316",borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700,color:"#fff"}}>今ここ</div>}
+          {!isCurrent && <div style={{background:"#16a34a",borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700,color:"#fff"}}>復習モード</div>}
+        </div>
+        <div style={{fontSize:18,fontWeight:800,color:"#f1f5f9",marginBottom:4}}>Week {lesson.week}：{lesson.theme}</div>
+        <div style={{fontSize:12,color:"#64748b",marginBottom:18}}>{lesson.topik}</div>
+      </div>
+      <div style={{padding:"8px 22px 100px"}}>
+        {/* フレーズ */}
+        <div style={{background:"linear-gradient(135deg,#f97316,#dc2626)",borderRadius:18,padding:22,marginBottom:14}}>
+          <div style={{fontSize:11,color:"rgba(255,255,255,.7)",marginBottom:6,letterSpacing:1}}>キーフレーズ</div>
+          <div style={{fontSize:20,fontWeight:800,color:"#fff",fontFamily:"'Noto Sans KR',sans-serif"}}>{lesson.morning.phrase.kr}</div>
+          <div style={{fontSize:13,color:"rgba(255,255,255,.85)",marginTop:6}}>{lesson.morning.phrase.rom}</div>
+          <div style={{fontSize:15,color:"#fff",marginTop:4,fontWeight:600}}>{lesson.morning.phrase.ja}</div>
+          <button onClick={()=>speakKorean(lesson.morning.phrase.kr)}
+            style={{marginTop:12,background:"rgba(255,255,255,.2)",border:"none",borderRadius:10,color:"#fff",padding:"7px 14px",cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>
+            🔊 発音を聞く
+          </button>
+        </div>
+        {/* 単語 */}
+        <div style={{fontSize:11,color:"#64748b",letterSpacing:1,marginBottom:10}}>📚 今週の単語</div>
+        {lesson.morning.vocab.map((v,i)=><VocabCard key={i} item={v}/>)}
+        {/* 文法 */}
+        <div style={{background:"#1e293b",borderRadius:18,padding:20,border:"1px solid rgba(249,115,22,.2)",marginTop:14}}>
+          <div style={{fontSize:11,color:"#64748b",letterSpacing:1,marginBottom:8}}>⚡ 文法ポイント</div>
+          <div style={{fontSize:18,fontWeight:800,color:"#f97316",marginBottom:6}}>{lesson.morning.grammar.point}</div>
+          <div style={{fontSize:14,color:"#f1f5f9",marginBottom:12}}>{lesson.morning.grammar.ja}</div>
+          <div style={{background:"#0f172a",borderRadius:12,padding:"12px 14px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+              <div style={{fontSize:11,color:"#64748b"}}>例文</div>
+              <button onClick={()=>speakKoreanAll(lesson.morning.grammar.example)}
+                style={{background:"rgba(249,115,22,.15)",border:"1px solid rgba(249,115,22,.3)",borderRadius:8,color:"#f97316",padding:"4px 10px",cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>
+                🔊 聞く
+              </button>
+            </div>
+            <div style={{fontSize:14,color:"#f1f5f9",fontFamily:"'Noto Sans KR',sans-serif",lineHeight:1.6}}>{lesson.morning.grammar.example}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // カリキュラム表示画面
-function CurriculumView({ weekIndex, onClose }) {
+function CurriculumView({ weekIndex, onClose, onSelectWeek }) {
   const phases = [1,2,3,4];
   return (
     <div style={{animation:"fadeIn .4s ease"}}>
       <div style={{padding:"22px 22px 0",background:"linear-gradient(180deg,#1e293b 0%,transparent 100%)"}}>
         <button onClick={onClose} style={{background:"none",border:"none",color:"#64748b",cursor:"pointer",fontSize:13,marginBottom:10,padding:0,fontFamily:"inherit"}}>← ホームへ</button>
         <div style={{fontSize:19,fontWeight:800,marginBottom:4}}>📅 52週カリキュラム</div>
-        <div style={{fontSize:12,color:"#64748b",marginBottom:20}}>TOPIK 4級 1年ロードマップ</div>
+        <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>TOPIK 4級 1年ロードマップ</div>
+        <div style={{fontSize:11,color:"#475569",marginBottom:18}}>✅ 復習可　🔒 学習済みの次の課まで解放</div>
       </div>
-      <div style={{padding:"0 22px 100px", overflowY:"auto"}}>
-        {phases.map(phase => (
+      <div style={{padding:"0 22px 100px",overflowY:"auto"}}>
+        {phases.map(phase=>(
           <div key={phase} style={{marginBottom:24}}>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
               <div style={{background:PHASE_COLORS[phase],borderRadius:8,padding:"4px 12px",fontSize:11,fontWeight:700,color:"#fff"}}>PHASE {phase}</div>
               <div style={{fontSize:13,color:"#94a3b8"}}>{PHASE_LABELS[phase].replace("\n","　")}</div>
             </div>
             {CURRICULUM.filter(w=>w.phase===phase).map(w=>{
-              const isDone = w.week-1 < weekIndex;
-              const isCurrent = w.week-1 === weekIndex;
+              const wIdx = w.week - 1;
+              const isDone = wIdx < weekIndex;
+              const isCurrent = wIdx === weekIndex;
+              const isNextUnlocked = wIdx === weekIndex + 1;
+              const isLocked = wIdx > weekIndex + 1;
               return (
-                <div key={w.week} style={{
-                  display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:12,marginBottom:6,
-                  background: isCurrent?"rgba(249,115,22,.1)":isDone?"rgba(22,163,74,.06)":"#1e293b",
-                  border: isCurrent?"1px solid rgba(249,115,22,.4)":isDone?"1px solid rgba(22,163,74,.2)":"1px solid rgba(255,255,255,.05)"
-                }}>
-                  <div style={{width:28,height:28,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,
-                    background: isCurrent?"#f97316":isDone?"#16a34a":"#334155",color:"#fff",flexShrink:0}}>
-                    {isDone?"✓":w.week}
+                <div key={w.week}
+                  onClick={()=>onSelectWeek(w)}
+                  style={{
+                    display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:12,marginBottom:6,
+                    cursor: isLocked ? "default" : "pointer",
+                    opacity: isLocked ? 0.45 : 1,
+                    background: isCurrent?"rgba(249,115,22,.1)":isDone?"rgba(22,163,74,.06)":isNextUnlocked?"rgba(99,102,241,.06)":"#1e293b",
+                    border: isCurrent?"1px solid rgba(249,115,22,.4)":isDone?"1px solid rgba(22,163,74,.2)":isNextUnlocked?"1px solid rgba(99,102,241,.25)":"1px solid rgba(255,255,255,.05)"
+                  }}>
+                  <div style={{width:28,height:28,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,flexShrink:0,
+                    background:isCurrent?"#f97316":isDone?"#16a34a":isNextUnlocked?"#6366f1":isLocked?"#1e293b":"#334155",
+                    color: isLocked?"#475569":"#fff",
+                    border: isLocked?"1px solid #334155":"none"}}>
+                    {isLocked?"🔒":isDone?"✓":w.week}
                   </div>
                   <div style={{flex:1}}>
-                    <div style={{fontSize:13,fontWeight:600,color:isCurrent?"#f97316":isDone?"#86efac":"#f1f5f9"}}>{w.theme}</div>
+                    <div style={{fontSize:13,fontWeight:600,color:isCurrent?"#f97316":isDone?"#86efac":isNextUnlocked?"#a5b4fc":"#94a3b8"}}>{w.theme}</div>
                     <div style={{fontSize:10,color:"#64748b",marginTop:1}}>{w.topik}</div>
                   </div>
-                  {isCurrent && <div style={{fontSize:10,color:"#f97316",fontWeight:700}}>今ここ</div>}
+                  <div style={{fontSize:11,fontWeight:700,color:isCurrent?"#f97316":isDone?"#16a34a":isNextUnlocked?"#6366f1":"#334155"}}>
+                    {isCurrent?"今ここ ›":isDone?"復習 ›":isNextUnlocked?"次の課 ›":""}
+                  </div>
                 </div>
               );
             })}
@@ -1187,6 +1327,7 @@ function CurriculumView({ weekIndex, onClose }) {
 // ─── MAIN APP ────────────────────────────────────────────────────────────────
 export default function App() {
   const [screen, setScreen] = useState("loading");
+  const [selectedWeek, setSelectedWeek] = useState(null);
   const [st, setSt] = useState({
     streak:0, totalDays:0, lastDate:null,
     weekIndex:0, completedToday:{morning:false,evening:false}, progressPct:0
@@ -1208,21 +1349,26 @@ export default function App() {
     }
   },[]);
 
-  async function complete(session) {
+  function complete(session) {
     const today = new Date().toDateString();
     const u = {...st, completedToday:{...st.completedToday,[session]:true}, lastDate:today};
     const both = u.completedToday.morning && u.completedToday.evening;
-    if(both && st.lastDate!==today){
-      u.streak=st.streak+1; u.totalDays=st.totalDays+1;
-      u.progressPct=Math.min(100, st.progressPct+100/365);
-      // 両方完了したら翌日のために週を進める準備（その日が終わったら自動進行）
-    } else if(!st.completedToday[session]){
-      u.progressPct=Math.min(100, st.progressPct+50/365);
+
+    // bothCompletedDate で「今日両方完了済み」を管理（lastDateと分離してバグを修正）
+    if(both && st.bothCompletedDate !== today){
+      u.bothCompletedDate = today;
+      u.streak = st.streak + 1;
+      u.totalDays = st.totalDays + 1;
+      u.progressPct = Math.min(100, st.progressPct + 100/365);
+    } else if(!st.completedToday[session] && !both){
+      u.progressPct = Math.min(100, st.progressPct + 50/365);
     }
-    // 週進行: 両方完了で次の日に週を進める
-    if(both && u.weekIndex < 51 && u.totalDays > u.weekIndex * 7 + 6){
-      u.weekIndex=Math.min(51,u.weekIndex+1);
+
+    // 週進行：7日ごとに次の週へ
+    if(both && u.weekIndex < 51 && u.totalDays > 0 && u.totalDays % 7 === 0){
+      u.weekIndex = Math.min(51, u.weekIndex + 1);
     }
+
     setSt(u); saveState(u); setScreen("home");
   }
 
@@ -1299,7 +1445,7 @@ export default function App() {
             {/* Sessions */}
             <div style={{fontSize:11,color:"#64748b",letterSpacing:1,marginBottom:8}}>TODAY</div>
             {[
-              {id:"morning",icon:st.completedToday.morning?"✅":"☀️",label:st.completedToday.morning?"朝のレッスン完了！":"朝のレッスン",sub:"フレーズ・単語・文法 • 約10分",color:"#f97316",done:st.completedToday.morning,locked:false},
+              {id:"morning",icon:st.completedToday.morning?"✅":"☀️",label:st.completedToday.morning?"朝のレッスン（復習）":"朝のレッスン",sub:st.completedToday.morning?"タップして復習できます • 約10分":"フレーズ・単語・文法 • 約10分",color:"#f97316",done:false,locked:false},
               {id:"evening",icon:st.completedToday.evening?"✅":"🎙️",label:st.completedToday.evening?"夜の練習完了！":"夜の音声会話練習",sub:`「${lesson.theme}」でAIと会話 • 約10分`,color:"#6366f1",done:st.completedToday.evening,locked:!st.completedToday.morning},
             ].map(s=>(
               <div key={s.id} style={{...C,cursor:(!s.done&&!s.locked)?"pointer":"default",opacity:s.locked?.4:1,
@@ -1327,7 +1473,18 @@ export default function App() {
         </div>
       )}
 
-      {screen==="curriculum" && <CurriculumView weekIndex={st.weekIndex} onClose={()=>setScreen("home")}/>}
+      {screen==="curriculum" && !selectedWeek &&
+        <CurriculumView
+          weekIndex={st.weekIndex}
+          onClose={()=>setScreen("home")}
+          onSelectWeek={w=>setSelectedWeek(w)}
+        />}
+      {screen==="curriculum" && selectedWeek &&
+        <WeekDetail
+          lesson={selectedWeek}
+          weekIndex={st.weekIndex}
+          onBack={()=>setSelectedWeek(null)}
+        />}
 
       {(screen==="morning"||screen==="evening") && (
         <div style={{animation:"fadeIn .4s ease"}}>
@@ -1355,7 +1512,6 @@ export default function App() {
               color:screen===id?"#f97316":"#475569",fontSize:10,fontWeight:screen===id?700:500,transition:"color .2s"}}
               onClick={()=>{
                 if(id==="evening"&&!st.completedToday.morning) return;
-                if(id==="morning"&&st.completedToday.morning) return;
                 setScreen(id);
               }}>
               <span style={{fontSize:18}}>{icon}</span>{label}
