@@ -1192,7 +1192,7 @@ function EveningPractice({ lesson, onComplete }) {
 
 // 週の詳細・復習画面
 function WeekDetail({ lesson, weekIndex, onBack }) {
-  const isLocked = lesson.week - 1 > weekIndex;
+  const isLocked = lesson.week - 1 > weekIndex + 1;  // 次の課まで閲覧可
   const isCurrent = lesson.week - 1 === weekIndex;
   const [step, setStep] = useState(0);
 
@@ -1206,8 +1206,8 @@ function WeekDetail({ lesson, weekIndex, onBack }) {
         <div style={{fontSize:18,fontWeight:800,color:"#f1f5f9",marginBottom:8}}>Week {lesson.week}：{lesson.theme}</div>
         <div style={{fontSize:14,color:"#64748b",marginBottom:24,lineHeight:1.7}}>
           この課はまだ学習できません。<br/>
-          Week {weekIndex + 1}（現在の課）を<br/>
-          完了すると解放されます。
+          現在の課（Week {weekIndex + 1}）の<br/>
+          朝・夜レッスンを完了すると解放されます。
         </div>
         <div style={{background:"#1e293b",borderRadius:14,padding:"14px 18px",border:"1px solid rgba(255,255,255,.06)"}}>
           <div style={{fontSize:11,color:"#64748b",marginBottom:4}}>学習予定のフレーズ</div>
@@ -1226,7 +1226,8 @@ function WeekDetail({ lesson, weekIndex, onBack }) {
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
           <div style={{background:PHASE_COLORS[lesson.phase],borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700,color:"#fff"}}>Phase {lesson.phase}</div>
           {isCurrent && <div style={{background:"#f97316",borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700,color:"#fff"}}>今ここ</div>}
-          {!isCurrent && <div style={{background:"#16a34a",borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700,color:"#fff"}}>復習モード</div>}
+          {!isCurrent && lesson.week - 1 < weekIndex && <div style={{background:"#16a34a",borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700,color:"#fff"}}>復習モード</div>}
+          {!isCurrent && lesson.week - 1 === weekIndex + 1 && <div style={{background:"#6366f1",borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700,color:"#fff"}}>次の課（プレビュー）</div>}
         </div>
         <div style={{fontSize:18,fontWeight:800,color:"#f1f5f9",marginBottom:4}}>Week {lesson.week}：{lesson.theme}</div>
         <div style={{fontSize:12,color:"#64748b",marginBottom:18}}>{lesson.topik}</div>
@@ -1354,19 +1355,21 @@ export default function App() {
     const u = {...st, completedToday:{...st.completedToday,[session]:true}, lastDate:today};
     const both = u.completedToday.morning && u.completedToday.evening;
 
-    // bothCompletedDate で「今日両方完了済み」を管理（lastDateと分離してバグを修正）
+    // 学習日数・ストリーク：1日1回カウント
     if(both && st.bothCompletedDate !== today){
       u.bothCompletedDate = today;
       u.streak = st.streak + 1;
       u.totalDays = st.totalDays + 1;
-      u.progressPct = Math.min(100, st.progressPct + 100/365);
+      u.progressPct = Math.min(100, st.progressPct + 100/52);
     } else if(!st.completedToday[session] && !both){
-      u.progressPct = Math.min(100, st.progressPct + 50/365);
+      u.progressPct = Math.min(100, st.progressPct + 50/52);
     }
 
-    // 週進行：7日ごとに次の週へ
-    if(both && u.weekIndex < 51 && u.totalDays > 0 && u.totalDays % 7 === 0){
-      u.weekIndex = Math.min(51, u.weekIndex + 1);
+    // 週進行：朝夜完了したら即座に次の課へ＆completedTodayをリセット
+    // → そのまま次の課をスタートできる（完全自由ペース）
+    if(both && u.weekIndex < 51){
+      u.weekIndex = Math.min(51, st.weekIndex + 1);
+      u.completedToday = {morning: false, evening: false};
     }
 
     setSt(u); saveState(u); setScreen("home");
