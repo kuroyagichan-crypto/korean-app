@@ -694,6 +694,18 @@ const CURRICULUM = [
 ];
 
 // ─── TOPIK LEVELS ────────────────────────────────────────────────────────────
+// 全週の単語プール（クイズの選択肢用）
+const ALL_VOCAB = CURRICULUM.flatMap(w => w.morning.vocab);
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 const TOPIK_LEVELS = [
   { level:"1級", range:[0,15], color:"#94a3b8" },
   { level:"2級", range:[15,30], color:"#60a5fa" },
@@ -970,6 +982,124 @@ function VocabCard({ item }) {
   );
 }
 
+
+// ── 単語クイズ（フラッシュカードの後の定着チェック）────────────────────────
+function makeQuestions(vocab) {
+  return vocab.map((item, idx) => {
+    const type = idx < 3 ? "ja-to-kr" : "audio-to-ja";
+    const wrongs = shuffle(ALL_VOCAB.filter(v => v.kr !== item.kr)).slice(0, 3);
+    const choices = shuffle([item, ...wrongs]);
+    return { item, type, choices };
+  });
+}
+
+function VocabQuiz({ vocab, onComplete }) {
+  const [questions] = useState(() => makeQuestions(vocab));
+  const [qIdx, setQIdx] = useState(0);
+  const [selected, setSelected] = useState(null);
+  const [score, setScore] = useState(0);
+  const [finished, setFinished] = useState(false);
+  const q = questions[qIdx];
+
+  useEffect(() => {
+    if (q.type === "audio-to-ja") setTimeout(() => speakKorean(q.item.kr), 400);
+  }, [qIdx]);
+
+  function select(choice) {
+    if (selected) return;
+    setSelected(choice);
+    const correct = choice.kr === q.item.kr;
+    if (correct) { setScore(s => s + 1); setTimeout(() => speakKorean(q.item.kr), 200); }
+  }
+
+  function next() {
+    if (qIdx < questions.length - 1) { setQIdx(i => i + 1); setSelected(null); }
+    else setFinished(true);
+  }
+
+  if (finished) {
+    const emoji = score >= 4 ? "🎉" : score >= 3 ? "👍" : "💪";
+    const msg = score === 5 ? "完璧です！" : score >= 3 ? "よく覚えています！" : "復習を続けましょう！";
+    return (
+      <div style={{textAlign:"center",padding:"32px 0",animation:"fadeIn .4s ease"}}>
+        <div style={{fontSize:52,marginBottom:12}}>{emoji}</div>
+        <div style={{fontSize:22,fontWeight:800,color:"#f1f5f9",marginBottom:6}}>{score} / {questions.length} 正解</div>
+        <div style={{fontSize:14,color:"#94a3b8",marginBottom:28}}>{msg}</div>
+        <button onClick={onComplete} style={btn("#f97316")}>文法へ →</button>
+      </div>
+    );
+  }
+
+  const isCorrect = selected?.kr === q.item.kr;
+
+  return (
+    <div style={{animation:"fadeIn .4s ease"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+        <div style={{fontSize:12,color:"#64748b"}}>問題 {qIdx + 1} / {questions.length}</div>
+        <div style={{fontSize:12,color:"#f97316",fontWeight:700}}>✓ {score}点</div>
+      </div>
+      <ProgressBar value={(qIdx / questions.length) * 100} color="#6366f1" />
+
+      {/* 問題カード */}
+      <div style={{background:"#1e293b",borderRadius:16,padding:22,marginTop:14,marginBottom:16,border:"1px solid rgba(99,102,241,.25)"}}>
+        <div style={{fontSize:11,color:"#a5b4fc",fontWeight:700,letterSpacing:1,marginBottom:14}}>
+          {q.type === "ja-to-kr" ? "🇯🇵 日本語 → 🇰🇷 韓国語" : "🔊 音声 → 🇯🇵 日本語"}
+        </div>
+        {q.type === "ja-to-kr"
+          ? <div style={{fontSize:24,fontWeight:800,color:"#f1f5f9"}}>{q.item.ja}</div>
+          : <div style={{textAlign:"center"}}>
+              <button onClick={() => speakKorean(q.item.kr)}
+                style={{background:"rgba(99,102,241,.2)",border:"1px solid rgba(99,102,241,.4)",borderRadius:"50%",width:72,height:72,cursor:"pointer",fontSize:32}}>
+                🔊
+              </button>
+              <div style={{fontSize:12,color:"#64748b",marginTop:10}}>音声を聞いて日本語の意味を選んでください</div>
+            </div>}
+      </div>
+
+      {/* 選択肢 */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
+        {q.choices.map((c, i) => {
+          const isThisCorrect = c.kr === q.item.kr;
+          const isThisSelected = selected?.kr === c.kr;
+          let bg = "#1e293b", border = "1px solid rgba(255,255,255,.06)", color = "#f1f5f9";
+          if (selected) {
+            if (isThisCorrect) { bg = "rgba(22,163,74,.2)"; border = "1px solid #16a34a"; color = "#86efac"; }
+            else if (isThisSelected) { bg = "rgba(239,68,68,.2)"; border = "1px solid #ef4444"; color = "#fca5a5"; }
+            else { color = "#475569"; }
+          }
+          return (
+            <button key={i} onClick={() => select(c)}
+              style={{background:bg,border,borderRadius:12,padding:"14px 8px",
+                cursor:selected?"default":"pointer",color,
+                fontSize:q.type==="ja-to-kr"?14:13,fontWeight:600,
+                fontFamily:q.type==="ja-to-kr"?"'Noto Sans KR',sans-serif":"inherit",
+                textAlign:"center",lineHeight:1.4,transition:"all .2s"}}>
+              {q.type === "ja-to-kr" ? c.kr : c.ja}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 正誤フィードバック */}
+      {selected && (
+        <>
+          <div style={{background:isCorrect?"rgba(22,163,74,.1)":"rgba(239,68,68,.1)",borderRadius:12,padding:"12px 14px",
+            border:`1px solid ${isCorrect?"#16a34a":"#ef4444"}`,marginBottom:12}}>
+            <div style={{fontSize:12,color:isCorrect?"#86efac":"#fca5a5",fontWeight:700,marginBottom:6}}>
+              {isCorrect ? "✅ 正解！" : `❌ 正しくは → ${q.item.ja}`}
+            </div>
+            <div style={{fontSize:16,color:"#f1f5f9",fontFamily:"'Noto Sans KR',sans-serif",marginBottom:3}}>{q.item.kr}</div>
+            <div style={{fontSize:12,color:"#94a3b8"}}>{q.item.rom}</div>
+          </div>
+          <button onClick={next} style={btn("#6366f1")}>
+            {qIdx < questions.length - 1 ? "次の問題 →" : "結果を見る →"}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 function MorningLesson({ lesson, onComplete }) {
   const [step, setStep] = useState(0);
   const { morning } = lesson;
@@ -996,32 +1126,108 @@ function MorningLesson({ lesson, onComplete }) {
         <div style={{fontSize:11,color:"#f97316",fontWeight:700,letterSpacing:2,marginBottom:6}}>📚 今日の単語（5個）</div>
         <div style={{color:"#64748b",fontSize:13,marginBottom:14}}>タップして意味を確認</div>
         {morning.vocab.map((v,i)=><VocabCard key={i} item={v}/>)}
-        <button onClick={()=>setStep(2)} style={{...btn("#f97316"),marginTop:12}}>文法へ →</button>
+        <button onClick={()=>setStep(2)} style={{...btn("#6366f1"),marginTop:12}}>クイズで定着確認 →</button>
       </>}
-      {step===2 && <>
-        <div style={{fontSize:11,color:"#f97316",fontWeight:700,letterSpacing:2,marginBottom:16}}>⚡ 文法ポイント</div>
-        <div style={{background:"#1e293b",borderRadius:20,padding:22,border:"1px solid rgba(249,115,22,.25)",marginBottom:18}}>
-          <div style={{fontSize:20,fontWeight:800,color:"#f97316",marginBottom:6}}>{morning.grammar.point}</div>
-          <div style={{fontSize:14,color:"#f1f5f9",marginBottom:14}}>{morning.grammar.ja}</div>
-          <div style={{background:"#0f172a",borderRadius:12,padding:"12px 16px"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-              <div style={{fontSize:11,color:"#64748b"}}>例文</div>
-              <button onClick={()=>speakKoreanAll(morning.grammar.example)}
-                style={{background:"rgba(249,115,22,.15)",border:"1px solid rgba(249,115,22,.3)",borderRadius:8,
-                  color:"#f97316",padding:"4px 10px",cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>
-                🔊 聞く
-              </button>
-            </div>
-            <div style={{fontSize:14,color:"#f1f5f9",fontFamily:"'Noto Sans KR',sans-serif",lineHeight:1.6}}>{morning.grammar.example}</div>
-          </div>
-        </div>
-        <button onClick={()=>{setStep(3);onComplete("morning");}} style={btn("#16a34a")}>✅ 朝のレッスン完了！</button>
-      </>}
-      {step===3 && <div style={{textAlign:"center",padding:"36px 0"}}>
+      {step===2 &&
+        <VocabQuiz vocab={morning.vocab} onComplete={()=>setStep(3)} />}
+      {step===3 &&
+        <GrammarExplain grammar={morning.grammar} onComplete={()=>{setStep(4);onComplete("morning");}} />}
+      {step===4 && <div style={{textAlign:"center",padding:"36px 0"}}>
         <div style={{fontSize:52,marginBottom:10}}>🌟</div>
         <div style={{fontSize:20,fontWeight:800,color:"#f1f5f9"}}>朝のレッスン完了！</div>
         <div style={{fontSize:14,color:"#94a3b8",marginTop:8}}>夜はAIと声で練習しましょう 🎙️</div>
       </div>}
+    </div>
+  );
+}
+
+
+// ── 文法詳細解説（Claude API で動的生成）──────────────────────────────────
+function GrammarExplain({ grammar, onComplete }) {
+  const [exp, setExp] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({
+            system: "あなたは韓国語教師です。日本人初級〜初中級学習者向けに文法を解説します。JSONのみを返してください。余分なテキストやマークダウンコードブロックは一切不要です。",
+            messages: [{role:"user", content:
+              `文法「${grammar.point}」（${grammar.ja}）を解説してください。
+以下のJSON形式のみで返答してください：
+{"rule":"この文法の仕組みを2〜3文で（なぜそうなるか・どう使うか）","jpTip":"日本語話者へのヒントや注意点を1文で","examples":[{"kr":"韓国語例文","rom":"カタカナ読み","ja":"日本語訳"},{"kr":"韓国語例文2","rom":"カタカナ読み","ja":"日本語訳"},{"kr":"韓国語例文3","rom":"カタカナ読み","ja":"日本語訳"}]}`
+            }]
+          })
+        });
+        const d = await res.json();
+        const text = (d.content?.[0]?.text || "").replace(/\`\`\`json|\`\`\`/g,"").trim();
+        setExp(JSON.parse(text));
+      } catch(e) {
+        setExp(null);
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  if (loading) return (
+    <div style={{textAlign:"center",padding:"40px 0"}}>
+      <div style={{fontSize:36,marginBottom:12,animation:"pulse 1.5s infinite"}}>⚡</div>
+      <div style={{fontSize:14,color:"#94a3b8"}}>文法を解説中…</div>
+    </div>
+  );
+
+  // APIエラー時は元のシンプル表示にフォールバック
+  const examples = exp?.examples || [{kr:grammar.example, rom:"", ja:""}];
+
+  return (
+    <div style={{animation:"fadeIn .4s ease"}}>
+      <div style={{fontSize:12,color:"#f97316",fontWeight:700,letterSpacing:2,marginBottom:16}}>⚡ 文法ポイント</div>
+
+      {/* タイトル */}
+      <div style={{background:"linear-gradient(135deg,rgba(249,115,22,.15),rgba(220,38,38,.08))",borderRadius:16,padding:"16px 18px",border:"1px solid rgba(249,115,22,.3)",marginBottom:14}}>
+        <div style={{fontSize:22,fontWeight:800,color:"#f97316",marginBottom:4}}>{grammar.point}</div>
+        <div style={{fontSize:15,color:"#f1f5f9",fontWeight:600}}>{grammar.ja}</div>
+      </div>
+
+      {/* 仕組み */}
+      {exp?.rule && (
+        <div style={{background:"#1e293b",borderRadius:14,padding:"14px 16px",marginBottom:10,border:"1px solid rgba(255,255,255,.06)"}}>
+          <div style={{fontSize:11,color:"#94a3b8",letterSpacing:1,marginBottom:8}}>📖 仕組み</div>
+          <div style={{fontSize:14,color:"#f1f5f9",lineHeight:1.8}}>{exp.rule}</div>
+        </div>
+      )}
+
+      {/* 日本語話者ヒント */}
+      {exp?.jpTip && (
+        <div style={{background:"rgba(99,102,241,.08)",borderRadius:14,padding:"12px 16px",marginBottom:14,border:"1px solid rgba(99,102,241,.2)"}}>
+          <div style={{fontSize:11,color:"#a5b4fc",letterSpacing:1,marginBottom:6}}>💡 日本語話者へのヒント</div>
+          <div style={{fontSize:14,color:"#e0e7ff",lineHeight:1.8}}>{exp.jpTip}</div>
+        </div>
+      )}
+
+      {/* 例文 */}
+      <div style={{fontSize:11,color:"#64748b",letterSpacing:1,marginBottom:10}}>例文</div>
+      {examples.map((ex, i) => (
+        <div key={i} style={{background:"#0f172a",borderRadius:12,padding:"12px 14px",marginBottom:8,border:"1px solid rgba(255,255,255,.05)"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+            <div style={{flex:1}}>
+              <div style={{fontSize:15,color:"#f1f5f9",fontFamily:"'Noto Sans KR',sans-serif",marginBottom:4}}>{ex.kr}</div>
+              {ex.rom && <div style={{fontSize:12,color:"#94a3b8",marginBottom:3}}>{ex.rom}</div>}
+              <div style={{fontSize:13,color:"#64748b"}}>{ex.ja}</div>
+            </div>
+            <button onClick={() => speakKorean(ex.kr)}
+              style={{background:"rgba(249,115,22,.15)",border:"1px solid rgba(249,115,22,.25)",borderRadius:8,
+                color:"#f97316",padding:"6px 10px",cursor:"pointer",fontSize:12,flexShrink:0,fontFamily:"inherit"}}>
+              🔊
+            </button>
+          </div>
+        </div>
+      ))}
+
+      <button onClick={onComplete} style={{...btn("#16a34a"),marginTop:8}}>✅ 朝のレッスン完了！</button>
     </div>
   );
 }
