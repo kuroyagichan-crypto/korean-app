@@ -941,30 +941,31 @@ function VocabCard({ item }) {
 
   function handleTap() {
     setF(v => !v);
-    speakKorean(item.kr);
+    // 裏面に返したとき（日本語→韓国語の確認後）に音声再生
+    if (!f) speakKorean(item.kr);
   }
 
   return (
     <div onClick={handleTap} style={{
-      background: f ? "#f97316" : "#1e293b", borderRadius:14, padding:"14px 18px",
+      background: f ? "#f97316" : "#1e293b", borderRadius:14, padding:"16px 18px",
       cursor:"pointer", transition:"all .25s", border:"1px solid rgba(249,115,22,.2)", marginBottom:8
     }}>
-      {!f
-        ? <>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-              <div style={{fontSize:20,fontWeight:700,color:"#f1f5f9",fontFamily:"'Noto Sans KR',sans-serif"}}>{item.kr}</div>
-              <div style={{fontSize:16,color:"#475569"}}>🔊</div>
-            </div>
-            <div style={{fontSize:12,color:"#94a3b8",marginTop:3}}>{item.rom}</div>
-            <div style={{fontSize:11,color:"#475569",marginTop:5}}>タップして意味を見る（音声も再生）</div>
-          </>
-        : <>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-              <div style={{fontSize:17,fontWeight:700,color:"#fff"}}>{item.ja}</div>
-              <div style={{fontSize:16,color:"rgba(255,255,255,.6)"}}>🔊</div>
-            </div>
-            <div style={{fontSize:13,color:"rgba(255,255,255,.8)",marginTop:5,fontFamily:"'Noto Sans KR',sans-serif"}}>{item.kr}　{item.rom}</div>
-          </>}
+      {!f ? (
+        /* 表面：日本語 → ハングル → カタカナ読み */
+        <>
+          <div style={{fontSize:18,fontWeight:800,color:"#f1f5f9",marginBottom:8}}>{item.ja}</div>
+          <div style={{fontSize:19,fontWeight:700,color:"#f97316",fontFamily:"'Noto Sans KR',sans-serif",marginBottom:4}}>{item.kr}</div>
+          <div style={{fontSize:12,color:"#64748b",marginBottom:8}}>{item.rom}</div>
+          <div style={{fontSize:11,color:"#475569"}}>タップして音声を聞く 🔊</div>
+        </>
+      ) : (
+        /* 裏面：ハングル大きく → 日本語 ※カタカナなし・音声自動再生済み */
+        <>
+          <div style={{fontSize:26,fontWeight:800,color:"#fff",fontFamily:"'Noto Sans KR',sans-serif",marginBottom:10,lineHeight:1.3}}>{item.kr}</div>
+          <div style={{fontSize:15,color:"rgba(255,255,255,.85)",fontWeight:600,marginBottom:8}}>{item.ja}</div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,.5)"}}>🔊 音声再生中 · もう一度タップ</div>
+        </>
+      )}
     </div>
   );
 }
@@ -977,11 +978,15 @@ function MorningLesson({ lesson, onComplete }) {
       {step===0 && <>
         <div style={{fontSize:11,color:"#f97316",fontWeight:700,letterSpacing:2,marginBottom:16}}>☀️ 今日のフレーズ</div>
         <div style={{background:"linear-gradient(135deg,#f97316,#dc2626)",borderRadius:20,padding:24,marginBottom:18}}>
-          <div style={{fontSize:22,fontWeight:800,color:"#fff",fontFamily:"'Noto Sans KR',sans-serif",lineHeight:1.4}}>{morning.phrase.kr}</div>
-          <div style={{fontSize:13,color:"rgba(255,255,255,.85)",marginTop:8}}>{morning.phrase.rom}</div>
-          <div style={{fontSize:15,color:"#fff",marginTop:5,fontWeight:600}}>{morning.phrase.ja}</div>
+          {/* 日本語を先に → ハングル → カタカナ → 音声 */}
+          <div style={{fontSize:14,color:"rgba(255,255,255,.7)",fontWeight:600,marginBottom:6,letterSpacing:0.5}}>日本語</div>
+          <div style={{fontSize:20,fontWeight:800,color:"#fff",marginBottom:14,lineHeight:1.4}}>{morning.phrase.ja}</div>
+          <div style={{height:"1px",background:"rgba(255,255,255,.2)",marginBottom:14}}/>
+          <div style={{fontSize:14,color:"rgba(255,255,255,.7)",fontWeight:600,marginBottom:6,letterSpacing:0.5}}>韓国語</div>
+          <div style={{fontSize:22,fontWeight:800,color:"#fff",fontFamily:"'Noto Sans KR',sans-serif",lineHeight:1.4,marginBottom:4}}>{morning.phrase.kr}</div>
+          <div style={{fontSize:13,color:"rgba(255,255,255,.75)",marginBottom:14}}>{morning.phrase.rom}</div>
           <button onClick={()=>speakKorean(morning.phrase.kr)}
-            style={{marginTop:12,background:"rgba(255,255,255,.2)",border:"none",borderRadius:10,color:"#fff",padding:"8px 16px",cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>
+            style={{background:"rgba(255,255,255,.2)",border:"none",borderRadius:10,color:"#fff",padding:"8px 18px",cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>
             🔊 発音を聞く
           </button>
         </div>
@@ -1235,12 +1240,15 @@ function WeekDetail({ lesson, weekIndex, onBack }) {
       <div style={{padding:"8px 22px 100px"}}>
         {/* フレーズ */}
         <div style={{background:"linear-gradient(135deg,#f97316,#dc2626)",borderRadius:18,padding:22,marginBottom:14}}>
-          <div style={{fontSize:11,color:"rgba(255,255,255,.7)",marginBottom:6,letterSpacing:1}}>キーフレーズ</div>
-          <div style={{fontSize:20,fontWeight:800,color:"#fff",fontFamily:"'Noto Sans KR',sans-serif"}}>{lesson.morning.phrase.kr}</div>
-          <div style={{fontSize:13,color:"rgba(255,255,255,.85)",marginTop:6}}>{lesson.morning.phrase.rom}</div>
-          <div style={{fontSize:15,color:"#fff",marginTop:4,fontWeight:600}}>{lesson.morning.phrase.ja}</div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,.7)",marginBottom:4,letterSpacing:1}}>キーフレーズ</div>
+          <div style={{fontSize:13,color:"rgba(255,255,255,.7)",fontWeight:600,marginBottom:4}}>日本語</div>
+          <div style={{fontSize:17,fontWeight:800,color:"#fff",marginBottom:10,lineHeight:1.4}}>{lesson.morning.phrase.ja}</div>
+          <div style={{height:"1px",background:"rgba(255,255,255,.2)",marginBottom:10}}/>
+          <div style={{fontSize:13,color:"rgba(255,255,255,.7)",fontWeight:600,marginBottom:4}}>韓国語</div>
+          <div style={{fontSize:19,fontWeight:800,color:"#fff",fontFamily:"'Noto Sans KR',sans-serif",lineHeight:1.4,marginBottom:4}}>{lesson.morning.phrase.kr}</div>
+          <div style={{fontSize:12,color:"rgba(255,255,255,.75)",marginBottom:10}}>{lesson.morning.phrase.rom}</div>
           <button onClick={()=>speakKorean(lesson.morning.phrase.kr)}
-            style={{marginTop:12,background:"rgba(255,255,255,.2)",border:"none",borderRadius:10,color:"#fff",padding:"7px 14px",cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>
+            style={{background:"rgba(255,255,255,.2)",border:"none",borderRadius:10,color:"#fff",padding:"7px 14px",cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>
             🔊 発音を聞く
           </button>
         </div>
