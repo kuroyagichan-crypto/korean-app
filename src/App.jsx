@@ -1435,7 +1435,7 @@ function EveningPractice({ lesson, onComplete }) {
 }
 
 // 週の詳細・復習画面
-function WeekDetail({ lesson, weekIndex, onBack }) {
+function WeekDetail({ lesson, weekIndex, onBack, onStartEvening }) {
   const isLocked = lesson.week - 1 > weekIndex + 1;  // 次の課まで閲覧可
   const isCurrent = lesson.week - 1 === weekIndex;
   const [step, setStep] = useState(0);
@@ -1510,6 +1510,15 @@ function WeekDetail({ lesson, weekIndex, onBack }) {
             <div style={{fontSize:14,color:"#f1f5f9",fontFamily:"'Noto Sans KR',sans-serif",lineHeight:1.6}}>{lesson.morning.grammar.example}</div>
           </div>
         </div>
+
+        {/* 夜の会話練習ボタン */}
+        <div style={{marginTop:20,borderTop:"1px solid rgba(255,255,255,.07)",paddingTop:18}}>
+          <div style={{fontSize:11,color:"#64748b",marginBottom:10}}>この課で会話練習する</div>
+          <button onClick={()=>onStartEvening(lesson)}
+            style={{...btn("#6366f1"),display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+            🎙️ 夜の音声会話練習
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1576,6 +1585,7 @@ function CurriculumView({ weekIndex, onClose, onSelectWeek }) {
 export default function App() {
   const [screen, setScreen] = useState("loading");
   const [selectedWeek, setSelectedWeek] = useState(null);
+  const [reviewLesson, setReviewLesson] = useState(null); // 復習用の課
   const [st, setSt] = useState({
     streak:0, totalDays:0, lastDate:null,
     weekIndex:0, completedToday:{morning:false,evening:false}, progressPct:0
@@ -1696,7 +1706,7 @@ export default function App() {
             <div style={{fontSize:11,color:"#64748b",letterSpacing:1,marginBottom:8}}>TODAY</div>
             {[
               {id:"morning",icon:st.completedToday.morning?"✅":"☀️",label:st.completedToday.morning?"朝のレッスン（復習）":"朝のレッスン",sub:st.completedToday.morning?"タップして復習できます • 約10分":"フレーズ・単語・文法 • 約10分",color:"#f97316",done:false,locked:false},
-              {id:"evening",icon:st.completedToday.evening?"✅":"🎙️",label:st.completedToday.evening?"夜の練習完了！":"夜の音声会話練習",sub:`「${lesson.theme}」でAIと会話 • 約10分`,color:"#6366f1",done:st.completedToday.evening,locked:!st.completedToday.morning},
+              {id:"evening",icon:st.completedToday.evening?"✅":"🎙️",label:st.completedToday.evening?"夜の練習完了！":"夜の音声会話練習",sub:`「${lesson.theme}」でAIと会話 • 約10分`,color:"#6366f1",done:st.completedToday.evening,locked:false},
             ].map(s=>(
               <div key={s.id} style={{...C,cursor:(!s.done&&!s.locked)?"pointer":"default",opacity:s.locked?.4:1,
                 border:s.done?"1px solid #16a34a":`1px solid rgba(${s.color==="#f97316"?"249,115,22":"99,102,241"},.2)`}}
@@ -1734,7 +1744,29 @@ export default function App() {
           lesson={selectedWeek}
           weekIndex={st.weekIndex}
           onBack={()=>setSelectedWeek(null)}
+          onStartEvening={w=>{setReviewLesson(w);setSelectedWeek(null);setScreen("review-evening");}}
         />}
+
+      {screen==="review-evening" && reviewLesson && (
+        <div style={{animation:"fadeIn .4s ease"}}>
+          <div style={{padding:"22px 20px 0",background:"linear-gradient(180deg,#1e293b 0%,transparent 100%)"}}>
+            <button onClick={()=>{setScreen("curriculum");setReviewLesson(null);}}
+              style={{background:"none",border:"none",color:"#64748b",cursor:"pointer",fontSize:13,marginBottom:10,padding:0,fontFamily:"inherit"}}>
+              ← カリキュラムへ
+            </button>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+              <div style={{background:PHASE_COLORS[reviewLesson.phase],borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700,color:"#fff"}}>Phase {reviewLesson.phase}</div>
+              <div style={{background:"#16a34a",borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700,color:"#fff"}}>復習</div>
+            </div>
+            <div style={{fontSize:18,fontWeight:800,marginBottom:3}}>🎙️ 夜の音声会話練習</div>
+            <div style={{fontSize:12,color:"#64748b",marginBottom:18}}>Week {reviewLesson.week}：{reviewLesson.theme}</div>
+          </div>
+          <div style={{padding:"8px 20px 80px"}}>
+            {/* 復習セッションは進捗に影響しない */}
+            <EveningPractice lesson={reviewLesson} onComplete={()=>{setScreen("curriculum");setReviewLesson(null);}} />
+          </div>
+        </div>
+      )}
 
       {(screen==="morning"||screen==="evening") && (
         <div style={{animation:"fadeIn .4s ease"}}>
@@ -1761,7 +1793,7 @@ export default function App() {
             <div key={id} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3,cursor:"pointer",padding:"7px 0",
               color:screen===id?"#f97316":"#475569",fontSize:10,fontWeight:screen===id?700:500,transition:"color .2s"}}
               onClick={()=>{
-                if(id==="evening"&&!st.completedToday.morning) return;
+                // 夜の練習はいつでもアクセス可
                 setScreen(id);
               }}>
               <span style={{fontSize:18}}>{icon}</span>{label}
