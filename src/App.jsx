@@ -727,18 +727,28 @@ function saveState(s) {
 
 // ─── CLAUDE API ──────────────────────────────────────────────────────────────
 async function askTutor(messages, lesson) {
-  const sys = `あなたは韓国語の会話練習AIです。
+  const sys = `あなたは韓国語スピーキングコーチです。
 学習者：日本人男性（ひろし）、目標：韓国人の妻の家族と話せること。
 今週のテーマ：「${lesson.theme}」（${lesson.topik}）
-ルール：
-- 1回の返答は短く（3〜4文）
-- 韓国語フレーズ＝カタカナ読み＝日本語訳 を必ず付ける
+
+【練習の構成】
+毎回のターンは必ず次の2種類のどちらかで終わること：
+
+▼ リピート練習（新しいフレーズを覚えるとき）
+- 短い解説（1〜2文）を日本語で書く
+- 🗣 リピート: （声に出してほしい韓国語1文） ← この行を必ず最後に書く
+- 🔊: （同じ韓国語） ← 音声再生用タグ
+
+▼ 応答練習（フレーズが定着してきたとき）
+- 韓国語で質問する（カタカナ読み＝日本語訳を添える）
+- 💭 ヒント: （日本語でどう答えればいいか1文）
+- 🔊: （質問文の韓国語） ← 音声再生用タグ
+
+【共通ルール】
 - 誤りはやさしく訂正し正しい表現を示す
-- 今週の単語・テーマを会話に自然に盛り込む
-- 励ます
-- 返答の最後の行は必ず次の形式で、ひろしに声に出して言ってほしい韓国語フレーズを1文だけ書く：
-  🔊: （韓国語フレーズのみ。カタカナや日本語訳は不要）
-  例：🔊: 안녕하세요！잘 지내셨어요?`;
+- 今週の単語・テーマを使う
+- 最初の2ターンはリピート練習、その後は応答練習を混ぜる
+- 🔊: タグは必ず最後の行に1つだけ書く`;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 25000);
@@ -812,13 +822,13 @@ function speakKorean(text) {
   }
 }
 
-// 複数文を順番に読み上げる（例文用）
+// 複数の単語・文を順番に読み上げる
+// ／ , 、 改行 などの区切りに全対応
 function speakKoreanAll(text) {
   window.speechSynthesis.cancel();
-  // ／ や改行で区切られた各パートから韓国語を抽出
-  const parts = text.split(/／|\n/);
+  const parts = text.split(/／|、|,\s*|\n/);
   const phrases = parts
-    .map(p => (p.match(/[\uAC00-\uD7A3]+/g) || []).join(" ").trim())
+    .map(p => (p.match(/[\uAC00-\uD7A3]+/g) || []).join("").trim())
     .filter(Boolean);
   if (!phrases.length) return;
 
@@ -833,12 +843,12 @@ function speakKoreanAll(text) {
     });
   };
 
-  if (window.speechSynthesis.getVoices().length > 0) {
-    speak();
-  } else {
-    window.speechSynthesis.onvoiceschanged = () => { speak(); window.speechSynthesis.onvoiceschanged = null; };
-  }
+  if (window.speechSynthesis.getVoices().length > 0) speak();
+  else { window.speechSynthesis.onvoiceschanged = () => { speak(); window.speechSynthesis.onvoiceschanged = null; }; }
 }
+
+// 単語カード用：見出し語を全て読む（speakKoreanAllのエイリアス）
+const speakVocab = speakKoreanAll;
 
 // 韓国語音声が利用可能か確認するフック
 function useKoreanVoiceCheck() {
@@ -953,8 +963,8 @@ function VocabCard({ item }) {
 
   function handleTap() {
     setF(v => !v);
-    // 裏面に返したとき（日本語→韓国語の確認後）に音声再生
-    if (!f) speakKorean(item.kr);
+    // 裏面に返したとき、見出し語を全て読み上げる（カンマ・スラッシュ区切りにも対応）
+    if (!f) speakVocab(item.kr);
   }
 
   return (
@@ -1002,14 +1012,14 @@ function VocabQuiz({ vocab, onComplete }) {
   const q = questions[qIdx];
 
   useEffect(() => {
-    if (q.type === "audio-to-ja") setTimeout(() => speakKorean(q.item.kr), 400);
+    if (q.type === "audio-to-ja") setTimeout(() => speakVocab(q.item.kr), 400);
   }, [qIdx]);
 
   function select(choice) {
     if (selected) return;
     setSelected(choice);
     const correct = choice.kr === q.item.kr;
-    if (correct) { setScore(s => s + 1); setTimeout(() => speakKorean(q.item.kr), 200); }
+    if (correct) { setScore(s => s + 1); setTimeout(() => speakVocab(q.item.kr), 200); }
   }
 
   function next() {
@@ -1048,7 +1058,7 @@ function VocabQuiz({ vocab, onComplete }) {
         {q.type === "ja-to-kr"
           ? <div style={{fontSize:24,fontWeight:800,color:"#f1f5f9"}}>{q.item.ja}</div>
           : <div style={{textAlign:"center"}}>
-              <button onClick={() => speakKorean(q.item.kr)}
+              <button onClick={() => speakVocab(q.item.kr)}
                 style={{background:"rgba(99,102,241,.2)",border:"1px solid rgba(99,102,241,.4)",borderRadius:"50%",width:72,height:72,cursor:"pointer",fontSize:32}}>
                 🔊
               </button>
@@ -1282,11 +1292,11 @@ function EveningPractice({ lesson, onComplete }) {
       <div style={{background:"#1e293b",borderRadius:20,padding:24,marginBottom:18,border:"1px solid rgba(99,102,241,.2)"}}>
         <div style={{fontSize:32,marginBottom:10}}>🎙️</div>
         <div style={{fontSize:17,fontWeight:800,color:"#f1f5f9",marginBottom:8}}>声で話す会話練習</div>
-        <div style={{fontSize:13,color:"#94a3b8",lineHeight:1.8}}>
-          AIが今週のテーマ<span style={{color:"#f97316",fontWeight:600}}>「{lesson.theme}」</span>で<br/>
-          韓国語を話しかけます。<br/>
-          マイクを押しながら声に出して答えましょう！<br/>
-          AI発言は🔊 自動読み上げされます。
+        <div style={{fontSize:13,color:"#94a3b8",lineHeight:1.9}}>
+          今週のテーマ<span style={{color:"#f97316",fontWeight:600}}>「{lesson.theme}」</span>で練習します。<br/><br/>
+          <span style={{color:"#fed7aa",fontWeight:700}}>🗣 リピート</span>：AIの韓国語をそのまま声に出す<br/>
+          <span style={{color:"#c7d2fe",fontWeight:700}}>💭 応答</span>：質問にヒントを見て韓国語で答える<br/><br/>
+          AI発言は🔊 自動読み上げ。マイクで話してください。
         </div>
         {!supported && <div style={{marginTop:12,background:"rgba(251,191,36,.08)",borderRadius:10,padding:"10px 14px",fontSize:12,color:"#fbbf24"}}>⚠️ 音声認識非対応。テキストで入力してください。</div>}
         {hasKoreanVoice === false && (
@@ -1339,18 +1349,33 @@ function EveningPractice({ lesson, onComplete }) {
               background:m.role==="user"?"#f97316":"#1e293b",
               border:m.role==="assistant"?"1px solid rgba(99,102,241,.2)":"none"}}>
               {m.content.split("\n").map((line, li) => {
-                const isPhrase = line.startsWith("🔊:");
+                const isPhrase  = line.startsWith("🔊:");
+                const isRepeat  = line.startsWith("🗣");
+                const isHint    = line.startsWith("💭");
+                const isEmpty   = line.trim() === "";
+                if (isEmpty) return <div key={li} style={{height:6}}/>;
                 return (
                   <div key={li} style={{
                     whiteSpace:"pre-wrap",
-                    marginTop: isPhrase ? 8 : 0,
-                    background: isPhrase ? "rgba(99,102,241,.2)" : "transparent",
-                    borderRadius: isPhrase ? 8 : 0,
-                    padding: isPhrase ? "6px 10px" : 0,
-                    color: isPhrase ? "#a5b4fc" : "#f1f5f9",
-                    fontWeight: isPhrase ? 700 : 400,
-                    fontFamily: isPhrase ? "'Noto Sans KR',sans-serif" : "inherit",
-                    fontSize: isPhrase ? 15 : 13,
+                    marginTop: (isRepeat||isHint) ? 10 : isPhrase ? 6 : 2,
+                    background: isRepeat ? "rgba(249,115,22,.18)"
+                              : isHint   ? "rgba(99,102,241,.15)"
+                              : isPhrase ? "rgba(99,102,241,.2)"
+                              : "transparent",
+                    borderRadius: (isRepeat||isHint||isPhrase) ? 10 : 0,
+                    padding: (isRepeat||isHint) ? "8px 12px"
+                           : isPhrase           ? "6px 10px"
+                           : "0",
+                    borderLeft: isRepeat ? "3px solid #f97316"
+                              : isHint   ? "3px solid #6366f1"
+                              : "none",
+                    color: isRepeat ? "#fed7aa"
+                         : isHint   ? "#c7d2fe"
+                         : isPhrase ? "#a5b4fc"
+                         : "#f1f5f9",
+                    fontWeight: (isRepeat||isHint||isPhrase) ? 700 : 400,
+                    fontFamily: (isRepeat||isPhrase) ? "'Noto Sans KR',sans-serif" : "inherit",
+                    fontSize: isRepeat ? 16 : isHint ? 13 : isPhrase ? 14 : 13,
                   }}>{line}</div>
                 );
               })}
@@ -1396,7 +1421,15 @@ function EveningPractice({ lesson, onComplete }) {
             <button onClick={()=>handleSend(inputText)} disabled={loading}
               style={{background:"#6366f1",color:"#fff",border:"none",borderRadius:12,padding:"11px 14px",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700}}>送信</button>
           </div>}
-      <div style={{textAlign:"center",marginTop:10,fontSize:11,color:"#475569"}}>あと {Math.max(0,4-exchanges.current)} 回やり取りで完了</div>
+      {/* 操作ガイド */}
+      <div style={{background:"#1e293b",borderRadius:10,padding:"8px 12px",marginTop:10,border:"1px solid rgba(255,255,255,.06)"}}>
+        <div style={{fontSize:11,color:"#64748b",lineHeight:1.7}}>
+          <span style={{color:"#fed7aa",fontWeight:700}}>🗣 リピート</span>：表示された韓国語をそのまま声に出す
+          {"　"}
+          <span style={{color:"#c7d2fe",fontWeight:700}}>💭 応答</span>：質問にヒントを参考に韓国語で答える
+        </div>
+      </div>
+      <div style={{textAlign:"center",marginTop:8,fontSize:11,color:"#475569"}}>あと {Math.max(0,4-exchanges.current)} 回やり取りで完了</div>
     </div>
   );
 }
