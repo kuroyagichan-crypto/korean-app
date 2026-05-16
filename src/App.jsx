@@ -1434,8 +1434,85 @@ function EveningPractice({ lesson, onComplete }) {
   );
 }
 
-// 週の詳細・復習画面
-function WeekDetail({ lesson, weekIndex, onBack, onStartEvening }) {
+// 週の選択画面（朝の内容か夜の練習かを選ぶ）
+function WeekSelector({ lesson, weekIndex, onBack, onMorning, onEvening }) {
+  const wIdx = lesson.week - 1;
+  const isLocked = wIdx > weekIndex + 1;
+  const isDone   = wIdx < weekIndex;
+  const isCurrent= wIdx === weekIndex;
+
+  if (isLocked) return (
+    <div style={{animation:"fadeIn .4s ease"}}>
+      <div style={{padding:"22px 22px 0"}}>
+        <button onClick={onBack} style={{background:"none",border:"none",color:"#64748b",cursor:"pointer",fontSize:13,marginBottom:10,padding:0,fontFamily:"inherit"}}>← カリキュラムへ</button>
+      </div>
+      <div style={{padding:"40px 22px",textAlign:"center"}}>
+        <div style={{fontSize:56,marginBottom:16}}>🔒</div>
+        <div style={{fontSize:18,fontWeight:800,color:"#f1f5f9",marginBottom:8}}>Week {lesson.week}：{lesson.theme}</div>
+        <div style={{fontSize:14,color:"#64748b",lineHeight:1.7}}>
+          Week {weekIndex + 1} の朝・夜を完了すると解放されます。
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{animation:"fadeIn .4s ease"}}>
+      <div style={{padding:"22px 22px 0",background:"linear-gradient(180deg,#1e293b 0%,transparent 100%)"}}>
+        <button onClick={onBack} style={{background:"none",border:"none",color:"#64748b",cursor:"pointer",fontSize:13,marginBottom:10,padding:0,fontFamily:"inherit"}}>← カリキュラムへ</button>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+          <div style={{background:PHASE_COLORS[lesson.phase],borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700,color:"#fff"}}>Phase {lesson.phase}</div>
+          {isCurrent && <div style={{background:"#f97316",borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700,color:"#fff"}}>今ここ</div>}
+          {isDone    && <div style={{background:"#16a34a",borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700,color:"#fff"}}>復習</div>}
+        </div>
+        <div style={{fontSize:20,fontWeight:800,color:"#f1f5f9",marginBottom:2}}>Week {lesson.week}</div>
+        <div style={{fontSize:16,color:"#94a3b8",marginBottom:20}}>{lesson.theme}</div>
+      </div>
+
+      <div style={{padding:"8px 22px 80px"}}>
+        {/* 今週のキーフレーズ プレビュー */}
+        <div style={{background:"#1e293b",borderRadius:16,padding:"14px 18px",marginBottom:20,border:"1px solid rgba(255,255,255,.06)"}}>
+          <div style={{fontSize:11,color:"#64748b",marginBottom:6}}>キーフレーズ</div>
+          <div style={{fontSize:16,fontWeight:700,color:"#f1f5f9",marginBottom:4}}>{lesson.morning.phrase.ja}</div>
+          <div style={{fontSize:14,color:"#f97316",fontFamily:"'Noto Sans KR',sans-serif"}}>{lesson.morning.phrase.kr}</div>
+        </div>
+
+        <div style={{fontSize:12,color:"#64748b",letterSpacing:1,marginBottom:12}}>何を練習しますか？</div>
+
+        {/* 朝：単語・文法 */}
+        <div onClick={onMorning}
+          style={{background:"#1e293b",borderRadius:18,padding:"20px 22px",marginBottom:12,
+            border:"1px solid rgba(249,115,22,.25)",cursor:"pointer",
+            display:"flex",alignItems:"center",gap:16}}>
+          <div style={{width:52,height:52,borderRadius:14,background:"rgba(249,115,22,.12)",
+            display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0}}>☀️</div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:16,fontWeight:700,color:"#f1f5f9",marginBottom:4}}>単語・文法を学ぶ</div>
+            <div style={{fontSize:12,color:"#64748b"}}>フレーズ → フラッシュカード → クイズ → 文法解説</div>
+          </div>
+          <div style={{color:"#f97316",fontSize:22}}>›</div>
+        </div>
+
+        {/* 夜：音声会話練習 */}
+        <div onClick={onEvening}
+          style={{background:"#1e293b",borderRadius:18,padding:"20px 22px",
+            border:"1px solid rgba(99,102,241,.25)",cursor:"pointer",
+            display:"flex",alignItems:"center",gap:16}}>
+          <div style={{width:52,height:52,borderRadius:14,background:"rgba(99,102,241,.12)",
+            display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0}}>🎙️</div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:16,fontWeight:700,color:"#f1f5f9",marginBottom:4}}>音声会話練習</div>
+            <div style={{fontSize:12,color:"#64748b"}}>このテーマでAIと韓国語で会話する</div>
+          </div>
+          <div style={{color:"#6366f1",fontSize:22}}>›</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 週の詳細・復習画面（単語・文法コンテンツ）
+function WeekDetail({ lesson, weekIndex, onBack }) {
   const isLocked = lesson.week - 1 > weekIndex + 1;  // 次の課まで閲覧可
   const isCurrent = lesson.week - 1 === weekIndex;
   const [step, setStep] = useState(0);
@@ -1511,14 +1588,7 @@ function WeekDetail({ lesson, weekIndex, onBack, onStartEvening }) {
           </div>
         </div>
 
-        {/* 夜の会話練習ボタン */}
-        <div style={{marginTop:20,borderTop:"1px solid rgba(255,255,255,.07)",paddingTop:18}}>
-          <div style={{fontSize:11,color:"#64748b",marginBottom:10}}>この課で会話練習する</div>
-          <button onClick={()=>onStartEvening(lesson)}
-            style={{...btn("#6366f1"),display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-            🎙️ 夜の音声会話練習
-          </button>
-        </div>
+
       </div>
     </div>
   );
@@ -1584,8 +1654,8 @@ function CurriculumView({ weekIndex, onClose, onSelectWeek }) {
 // ─── MAIN APP ────────────────────────────────────────────────────────────────
 export default function App() {
   const [screen, setScreen] = useState("loading");
-  const [selectedWeek, setSelectedWeek] = useState(null);
-  const [reviewLesson, setReviewLesson] = useState(null); // 復習用の課
+  const [selectedWeek, setSelectedWeek]   = useState(null); // カリキュラム選択中の週
+  const [reviewLesson, setReviewLesson]   = useState(null); // 復習用の課（夜）
   const [st, setSt] = useState({
     streak:0, totalDays:0, lastDate:null,
     weekIndex:0, completedToday:{morning:false,evening:false}, progressPct:0
@@ -1739,13 +1809,29 @@ export default function App() {
           onClose={()=>setScreen("home")}
           onSelectWeek={w=>setSelectedWeek(w)}
         />}
-      {screen==="curriculum" && selectedWeek &&
-        <WeekDetail
+      {screen==="curriculum" && selectedWeek && !reviewLesson &&
+        <WeekSelector
           lesson={selectedWeek}
           weekIndex={st.weekIndex}
           onBack={()=>setSelectedWeek(null)}
-          onStartEvening={w=>{setReviewLesson(w);setSelectedWeek(null);setScreen("review-evening");}}
+          onMorning={()=>setScreen("week-morning")}
+          onEvening={()=>{ setReviewLesson(selectedWeek); setScreen("review-evening"); }}
         />}
+      {screen==="week-morning" && selectedWeek &&
+        <div style={{animation:"fadeIn .4s ease"}}>
+          <div style={{padding:"22px 20px 0",background:"linear-gradient(180deg,#1e293b 0%,transparent 100%)"}}>
+            <button onClick={()=>setScreen("curriculum")} style={{background:"none",border:"none",color:"#64748b",cursor:"pointer",fontSize:13,marginBottom:10,padding:0,fontFamily:"inherit"}}>← 選択へ戻る</button>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+              <div style={{background:PHASE_COLORS[selectedWeek.phase],borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700,color:"#fff"}}>Phase {selectedWeek.phase}</div>
+              <div style={{background:"#16a34a",borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700,color:"#fff"}}>復習</div>
+            </div>
+            <div style={{fontSize:18,fontWeight:800,marginBottom:4}}>☀️ 単語・文法を学ぶ</div>
+            <div style={{fontSize:12,color:"#64748b",marginBottom:18}}>Week {selectedWeek.week}：{selectedWeek.theme}</div>
+          </div>
+          <div style={{padding:"8px 20px 80px"}}>
+            <WeekDetail lesson={selectedWeek} weekIndex={st.weekIndex} onBack={()=>setScreen("curriculum")} />
+          </div>
+        </div>}
 
       {screen==="review-evening" && reviewLesson && (
         <div style={{animation:"fadeIn .4s ease"}}>
@@ -1793,8 +1879,20 @@ export default function App() {
             <div key={id} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3,cursor:"pointer",padding:"7px 0",
               color:screen===id?"#f97316":"#475569",fontSize:10,fontWeight:screen===id?700:500,transition:"color .2s"}}
               onClick={()=>{
-                // 夜の練習はいつでもアクセス可
-                setScreen(id);
+                if(id==="morning"){
+                  // 朝は常に現在の週のレッスンへ（復習含む）
+                  setSelectedWeek(null); setReviewLesson(null);
+                  setScreen("morning");
+                } else if(id==="evening"){
+                  // 夜は常に現在の週の会話練習へ
+                  setSelectedWeek(null); setReviewLesson(null);
+                  setScreen("evening");
+                } else if(id==="curriculum"){
+                  setSelectedWeek(null); setReviewLesson(null);
+                  setScreen("curriculum");
+                } else {
+                  setScreen(id);
+                }
               }}>
               <span style={{fontSize:18}}>{icon}</span>{label}
             </div>
